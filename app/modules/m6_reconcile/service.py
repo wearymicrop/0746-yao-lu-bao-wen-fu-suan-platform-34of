@@ -26,6 +26,7 @@ def reconcile(intake, soak, gaps):
         if difference == row_difference == 0
         and continuity
         and gaps["unproven_s"] == seconds["unproven"]
+        and soak["unresolved_s"] <= seconds["unproven"]
         else "MISMATCH",
         "planned_s": planned,
         "proven_s": seconds["proven"],
@@ -35,5 +36,7 @@ def reconcile(intake, soak, gaps):
         "reading_difference": row_difference,
         "longest_s": soak["longest_s"],
         "goal_met": soak["goal_met"],
+        "unresolved_s": soak["unresolved_s"],
+        "adjudication": soak["adjudication"]["status"],
         "continuous_partition": continuity,
     }

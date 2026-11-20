@@ -27,6 +27,10 @@
 | TRAP-19 | 同一时段缺证和失温同时出现 | 只看失温 | 缺证优先，留失温证据 | `app/modules/m4_soak/service.py` | `tests/test_soak.py::test_unknown_thermal_state_counts_before_cold` |
 | TRAP-23 | 配方边界相邻 | 两段合算连续 | 左闭右开且版本处切段 | `app/modules/m4_soak/service.py` | `tests/test_soak.py::test_version_break_beats_sum` |
 | TRAP-25 | 试签配方与在用版并发 | 任取一版 | 记录双来源并切入缺证 | `app/modules/m4_soak/service.py` | `tests/test_soak.py::test_recipe_overlap_cannot_choose_last` |
+| TRAP-31 | 试签版迟到且与正式版重叠 | 后到版本覆盖，连续时长与签核证据对不上 | 重叠段不裁决，双来源待核，旧版结论与已连续时长保留 | `app/modules/m4_soak/service.py` | `tests/test_recipe_ruling.py::test_late_trial_does_not_overwrite_effective_stretch` |
+| TRAP-32 | 同一份配方重试报送 | 视为两个版本，重叠切段并重复计时 | 版本、时窗、阈值全同则并为一窗，证据行合并 | `app/modules/m4_soak/recipes.py` | `tests/test_recipe_ruling.py::test_retry_of_same_recipe_counts_once` |
+| TRAP-33 | 裁决失败仍要交班 | 清空结论后无法发布 | 保持旧版结论与时长，签核转复核并注明未决 | `app/modules/m7_archive/signoff.py` | `tests/test_recipe_ruling.py::test_pending_overlap_blocks_release_but_keeps_old_result` |
+| TRAP-34 | 重跑时来源或规则已变 | 覆盖旧凭证或丢弃归档 | 摘要不一致则拒绝并保留原归档 | `app/modules/m7_archive/service.py` `app/store.py` | `tests/test_recipe_ruling.py::test_rerun_failure_preserves_old_bundle` |
 
 ## 对账
 

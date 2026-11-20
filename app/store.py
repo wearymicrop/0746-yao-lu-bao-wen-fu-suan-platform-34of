@@ -35,12 +35,7 @@ class Ledger:
         return json.loads(row[0])
 
     def put_source(self, identifier, payload):
-        with self.connect() as conn:
-            cursor = conn.execute(
-                "INSERT OR IGNORE INTO sources VALUES (?, ?)",
-                (identifier, canonical(payload)),
-            )
-            return cursor.rowcount == 0
+        return self._put("sources", identifier, payload, "SOURCE_CONFLICT", "来源摘要冲突")
 
     def run(self, identifier):
         with self.connect() as conn:
@@ -52,9 +47,26 @@ class Ledger:
         return json.loads(row[0])
 
     def put_run(self, payload):
+        return self._put("runs", payload["id"], payload, "RUN_CONFLICT", "归档摘要冲突")
+
+    def _put(self, table, identifier, payload, code, message):
+        """Insert once; an existing row is reused only if the bytes agree.
+
+        Recovery must never silently replace an archived record with a
+        different one that happens to share its identifier, so a mismatch is
+        reported and the stored evidence is left untouched.
+        """
+        body = canonical(payload)
         with self.connect() as conn:
             cursor = conn.execute(
-                "INSERT OR IGNORE INTO runs VALUES (?, ?)",
-                (payload["id"], canonical(payload)),
+                f"INSERT OR IGNORE INTO {table} VALUES (?, ?)",
+                (identifier, body),
             )
-            return cursor.rowcount == 0
+            if cursor.rowcount:
+                return False
+            row = conn.execute(
+                f"SELECT payload FROM {table} WHERE id = ?", (identifier,)
+            ).fetchone()
+        if row is not None and row[0] != body:
+            raise BusinessError(code, message, 409)
+        return True

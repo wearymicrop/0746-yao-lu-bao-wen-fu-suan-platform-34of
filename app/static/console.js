@@ -10,6 +10,14 @@ const causes = {
   CALIBRATION_GAP: "校准缺失",
   CALIBRATION_OVERLAP: "校准重叠",
 };
+const rulings = {
+  EFFECTIVE: "正式版生效",
+  TRIAL: "试签版生效",
+  UNRESOLVED: "重叠未决",
+  MISSING: "缺少配方",
+};
+const dispositions = { CHOSEN: "采用", PENDING: "待核", IGNORED: "未采用" };
+const kinds = { formal: "正式", trial: "试签" };
 const time = (value) =>
   new Date(value * 1000).toLocaleTimeString("zh-CN", {
     timeZone: "Asia/Shanghai",
@@ -72,9 +80,12 @@ function inspect(index) {
   buttons.forEach((button, i) =>
     button.setAttribute("aria-pressed", String(i === index)),
   );
+  const version = item.version
+    ? `${item.version} · ${rulings[item.recipe_status] || ""}`
+    : `配方待核${item.retained_version ? ` · 沿用 ${item.retained_version}` : ""}`;
   const title = make(
     "h3",
-    `${time(item.start)}–${time(item.end)} · ${states[item.state]} · ${item.version || "配方待核"}`,
+    `${time(item.start)}–${time(item.end)} · ${states[item.state]} · ${version}`,
   );
   const grid = make("div", undefined, "zone-grid");
   for (const z of item.zones) {
@@ -94,7 +105,95 @@ function inspect(index) {
     );
     grid.append(cell);
   }
-  el("segment").replaceChildren(title, grid);
+  const notes = make("div", undefined, "segment-notes");
+  notes.append(
+    make("p", `本段裁决：${item.recipe_decision}`, "note-strong"),
+    make(
+      "p",
+      item.streak_index
+        ? `位于第 ${item.streak_index} 个连续段内 · 前接 ${item.run_before_s} 秒 · 后续 ${item.run_after_s} 秒 · 该段共 ${item.streak_s} 秒（${item.version}）`
+        : `本段不连续 · 上一连续段 ${item.previous_streak_s} 秒 · 下一连续段 ${item.next_streak_s} 秒`,
+    ),
+  );
+  if (item.recipe_status !== "EFFECTIVE" && item.retained_version) {
+    notes.append(
+      make(
+        "p",
+        `未决期间保留旧版 ${item.retained_version}（来源行 ${item.retained_rows.join("、")}）：按旧版目标判为 ${states[item.retained_state] || "未定"}，旧结论不清空`,
+        "note-retained",
+      ),
+    );
+  }
+  const sources =
+    item.recipe_sources.length > 1 ? make("ul", undefined, "sources") : null;
+  if (sources) {
+    for (const source of item.recipe_sources) {
+      sources.append(
+        make(
+          "li",
+          `${source.version} · ${kinds[source.kind] || source.kind} · 行 ${source.rows.join("、")} · ${dispositions[source.disposition] || source.disposition}`,
+        ),
+      );
+    }
+  }
+  el("segment").replaceChildren(title, notes, grid);
+  if (sources) el("segment").append(sources);
+}
+
+function ruling() {
+  const ruling = snapshot.soak.adjudication;
+  if (!ruling) return el("ruling").replaceChildren();
+  const versions = ruling.effective
+    .map((run) => run.version)
+    .filter(Boolean)
+    .join(" → ");
+  const head = make(
+    "p",
+    ruling.status === "CLEAR"
+      ? `配方已裁决：${versions}`
+      : `${ruling.decision} · 未决 ${ruling.pending_s} 秒`,
+    `ruling-head ${ruling.status.toLowerCase()}`,
+  );
+  const nodes = [head];
+  if (ruling.status !== "CLEAR") {
+    nodes.push(
+      ...ruling.windows.map((window) => {
+        const sources = snapshot.soak.sections
+          .filter((item) => item.start >= window.start && item.end <= window.end)
+          .flatMap((item) => item.pending_sources)
+          .filter(
+            (source, index, all) =>
+              all.findIndex(
+                (other) => other.rows.join() === source.rows.join(),
+              ) === index,
+          );
+        const strip = make("div", undefined, "ruling-window");
+        strip.append(
+          make(
+            "span",
+            `${time(window.start)}–${time(window.end)} · ${window.seconds} 秒`,
+          ),
+          make(
+            "small",
+            `未决来源：${sources
+              .map((source) => `${source.version}（行 ${source.rows.join("、")}）`)
+              .join("、")}`,
+          ),
+        );
+        return strip;
+      }),
+    );
+    if (ruling.retained?.version) {
+      nodes.push(
+        make(
+          "p",
+          `保留旧版结论：${ruling.retained.version}（行 ${ruling.retained.rows.join("、")}）此前已连续 ${ruling.retained.streak_s} 秒，按旧版本段判为 ${states[ruling.retained.state] || "未定"}`,
+          "ruling-retained",
+        ),
+      );
+    }
+  }
+  el("ruling").replaceChildren(...nodes);
 }
 function render() {
   const { reconcile: r, intake, soak, gaps } = snapshot;
@@ -117,12 +216,19 @@ function render() {
   );
   el("balance").textContent =
     r.status === "MATCHED"
-      ? `时长和行数已对平 · 连续目标 ${soak.goal_s} 秒`
+      ? `时长和行数已对平 · 连续目标 ${soak.goal_s} 秒${
+          soak.adjudication.status === "CLEAR"
+            ? ""
+            : ` · 配方未决 ${soak.unresolved_s} 秒，保留旧版结论`
+        }`
       : "炉批存在差异";
+  ruling();
   buttons = soak.sections.map((item, i) => {
     const button = make("button", undefined, `slot ${item.state}`);
     button.style.setProperty("--part", item.seconds);
-    button.title = `${time(item.start)} ${states[item.state]}`;
+    button.title = `${time(item.start)} ${states[item.state]} · ${
+      item.version || "配方待核"
+    }`;
     button.setAttribute("aria-label", button.title);
     button.onclick = () => inspect(i);
     return button;
@@ -146,6 +252,17 @@ function render() {
             row.codes.map((code) => causes[code] || code).join("、"),
           );
           summary.append(make("small", `${time(row.start)} · ${row.decision}`));
+          if (row.retained_version) {
+            summary.append(
+              make(
+                "small",
+                `保留 ${row.retained_version} · 未决来源 ${row.pending_sources
+                  .map((source) => source.version)
+                  .join("、")}`,
+                "gap-retained",
+              ),
+            );
+          }
           button.append(summary, make("time", `${row.seconds} 秒`));
           button.onclick = () =>
             inspect(

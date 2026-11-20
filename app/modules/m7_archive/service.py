@@ -36,9 +36,18 @@ def archive(ledger, source, operator):
 def rerun(ledger, run_id):
     record = ledger.run(run_id)
     manifest_data = record["manifest"]
-    fresh = prepare(ledger, manifest_data["source"], manifest_data["operator"])
-    if fresh != record:
+    try:
+        fresh = prepare(ledger, manifest_data["source"], manifest_data["operator"])
+    except BusinessError as error:
         raise BusinessError(
-            "MANIFEST_CHANGED", "来源或规则版本发生变化，请另行归档", 409
+            "RERUN_UNAVAILABLE",
+            f"无法重跑归档：{error.message}；已归档凭证保持原样",
+            409,
+        ) from error
+    if fresh != record:
+        # The live source or rules no longer reproduce this bundle; the old
+        # decision and its manifest stay readable instead of being replaced.
+        raise BusinessError(
+            "MANIFEST_CHANGED", "来源或规则版本发生变化，请另行归档；旧凭证保持不变", 409
         )
     return dict(record, reused=True)

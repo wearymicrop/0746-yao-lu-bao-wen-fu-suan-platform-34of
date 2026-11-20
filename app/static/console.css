@@ -253,6 +253,65 @@ h2 {
   align-items: stretch;
   height: 47px;
 }
+.ruling {
+  padding: 0 12px;
+}
+.ruling-head {
+  margin: 0;
+  padding: 8px 10px;
+  font: 12px var(--mono);
+  border-left: 3px solid var(--accent);
+  background: #202d25;
+  color: var(--sub);
+}
+.ruling-head.pending {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.ruling-window {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--warn);
+  background: #2b281f;
+  font: 12px var(--mono);
+}
+.ruling-window small {
+  color: var(--sub);
+}
+.ruling-retained {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--cold);
+  background: #2c241f;
+  color: var(--sub);
+  font: 12px var(--mono);
+}
+.segment-notes {
+  margin-bottom: 8px;
+  font: 12px var(--mono);
+  color: var(--sub);
+}
+.segment-notes p {
+  margin: 2px 0;
+}
+.segment-notes .note-strong {
+  color: var(--ink);
+}
+.segment-notes .note-retained {
+  color: var(--cold);
+}
+.sources {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--sub);
+  font: 12px var(--mono);
+}
+.gap-retained {
+  color: var(--cold) !important;
+}
 .slot {
   padding: 0;
   flex: var(--part) 1 0;
